@@ -1,0 +1,59 @@
+blueprint:
+  name: Test Binary Sensor
+  description: >-
+    Trigger-basierter Binary Sensor für Automations-Tests.
+    Geht bei einem Event (test_binary_sensor_trigger) für eine konfigurierbare
+    Dauer auf 'on' und fällt danach automatisch ab.
+    Event-Data: sensor_id (required), duration (optional, überschreibt default_duration).
+  domain: template
+  input:
+    sensor_id:
+      name: Sensor ID
+      description: "Eindeutige ID, die im Event-Data-Feld 'sensor_id' übergeben wird"
+      selector:
+        text:
+    sensor_name:
+      name: Anzeigename
+      description: "Friendly name des Binary Sensors"
+      selector:
+        text:
+    device_class:
+      name: Device Class
+      description: "HA Binary Sensor Device Class"
+      default: motion
+      selector:
+        select:
+          options:
+            - motion
+            - occupancy
+            - opening
+            - presence
+            - vibration
+            - sound
+    default_duration:
+      name: Standard-Dauer (Sekunden)
+      description: "Dauer in Sekunden, die der Sensor auf 'on' bleibt (überschreibbar per Event-Data)"
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 3600
+          unit_of_measurement: s
+
+variables:
+  sensor_id: !input sensor_id
+  default_duration: !input default_duration
+
+trigger:
+  - trigger: event
+    event_type: test_binary_sensor_trigger
+    event_data:
+      sensor_id: !input sensor_id
+
+binary_sensor:
+  - name: !input sensor_name
+    unique_id: "test_binary_sensor_{{ sensor_id }}"
+    device_class: !input device_class
+    state: "true"
+    auto_off: >-
+      {{ trigger.event.data.duration | default(default_duration) | int }}

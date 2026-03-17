@@ -1,0 +1,97 @@
+blueprint:
+  name: Area Temperature Average Sensor
+  description: >-
+    Create a template sensor that calculates the average temperature from multiple temperature sensors.
+    The sensor automatically updates when source sensors change and handles unavailable sensors gracefully.
+  domain: template
+  input:
+    area_name:
+      name: Area Name
+      description: The name of the area (e.g., "Living Room", "Terrace22")
+      selector:
+        area:
+    unique_id_suffix:
+      name: Unique ID Suffix
+      description: Unique identifier suffix for the sensor (e.g., "living_room", "terrace22")
+      selector:
+        text:
+    temperature_sensors:
+      name: Temperature Sensors
+      description: List of temperature sensor entities to average
+      selector:
+        entity:
+          multiple: true
+          filter:
+            device_class: temperature
+    update_interval:
+      name: Update Interval (minutes)
+      description: Fallback update interval in minutes
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: minutes
+    icon:
+      name: Icon
+      description: Icon for the temperature sensor
+      default: "mdi:thermometer"
+      selector:
+        icon:
+
+template:
+  - trigger:
+      - platform: state
+        id: "state_trigger"
+        entity_id: !input temperature_sensors
+        not_from:
+          - "unknown"
+          - "unavailable"
+        not_to:
+          - "unknown"
+          - "unavailable"
+      - trigger: event
+        event_type: event_template_reloaded
+        id: "template_reloaded_trigger"
+      - platform: time_pattern
+        minutes: !input update_interval
+        id: "time_pattern_trigger"
+    variables:
+      sensor_entities: !input temperature_sensors
+    sensor:
+      - name: "{{ area_name }} Area Temperature"
+        unique_id: "{{ unique_id_suffix }}_area_temperature"
+        device_class: temperature
+        unit_of_measurement: "°C"
+        state_class: measurement
+        icon: !input icon
+        state: >-
+          {%- set states = sensor_entities | map('states') | select('is_number') | map('float') | list -%}
+          {%- set sensor_count = states | count -%}
+          {{ iif(sensor_count > 0, ((states | sum) / sensor_count) | round(1), 'unavailable') }}
+        availability: >-
+          {%- set states = sensor_entities | map('states') | select('is_number') | map('float') | list -%}
+          {{ (states | count) > 0 }}
+        attributes:
+          area_name: !input area_name
+          sensor_entities: >-
+            {{ sensor_entities | list }}
+          valid_sensors: >-
+            {%- set states = sensor_entities | map('states') | select('is_number') | map('float') | list -%}
+            {{ states | count }}
+          total_sensors: >-
+            {{ sensor_entities | count }}
+          sensor_details: >-
+            {%- set ns = namespace(details=[]) -%}
+            {%- for entity in sensor_entities -%}
+              {%- set temp = states(entity) -%}
+              {%- set ns.details = ns.details + [{
+                'entity_id': entity,
+                'name': state_attr(entity, 'friendly_name') or entity,
+                'temperature': temp if temp is number else 'unavailable',
+                'available': temp is number
+              }] -%}
+            {%- endfor -%}
+            {{ ns.details }}
+          last_updated: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+          blueprint_version: "1.0.0"

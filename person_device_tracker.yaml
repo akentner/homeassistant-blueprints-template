@@ -1,0 +1,52 @@
+blueprint:
+  name: Person Device Tracker Switch
+  description: >-
+    This blueprint creates a switch to manage a device tracker for a person entity.
+    Turning the switch on adds the specified device tracker to the person's device trackers,
+    while turning it off removes it. The switch state reflects whether the device tracker
+    is currently associated with the person.
+  domain: template
+  input:
+    person_entity:
+      name: Person entity
+      description: The person entity which needs to have its device trackers managed
+      selector:
+        entity:
+          domain: person
+    device_tracker_entity:
+      name: Device tracker entity
+      description: The device tracker entity which needs to be managed for the person
+      selector:
+        entity:
+          domain: device_tracker
+variables:
+  person_entity: !input person_entity
+  device_tracker_entity: !input device_tracker_entity
+switch:
+  # default_entity_id: "switch.{{ person_entity.entity_id | replace('person.', '') }}_has_{{ device_tracker_entity.entity_id | replace('device_tracker.', '') }}_tracked"
+  # unique_id: "switch.{{ person_entity.entity_id }}_has_{{ device_tracker_entity.entity_id }}_tracked"
+  name: "{{ state_attr(device_tracker_entity,'friendly_name') }} als Gerätetracker für {{ state_attr(person_entity,'friendly_name') }}"
+  state: "{{ device_tracker_entity in state_attr(person_entity, 'device_trackers') }}"
+  availability: "{{ states(device_tracker_entity) not in ('unknown', 'unavailable') }}"
+  turn_on:
+    - action: person.add_device_tracker
+      data:
+        entity_id: !input person_entity
+        device_tracker:
+          - !input device_tracker_entity
+    - action: homeassistant.update_entity
+      data:
+        entity_id:
+          - !input person_entity
+          - !input device_tracker_entity
+  turn_off:
+    - action: person.remove_device_tracker
+      data:
+        entity_id: !input person_entity
+        device_tracker:
+          - !input device_tracker_entity
+    - action: homeassistant.update_entity
+      data:
+        entity_id:
+          - !input person_entity
+          - !input device_tracker_entity
